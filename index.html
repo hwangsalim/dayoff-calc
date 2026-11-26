@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>연차 소진 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* layout: one column, result card first, then settings, then usage log */
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #17231f;
+  --muted: #5f6f68;
+  --line: #dde3df;
+  --accent: #0f7b5f;
+  --accent-soft: #dff2ea;
+  --warn: #b45309;
+  --warn-soft: #fdecd0;
+  --bad: #b3261e;
+  --used: #aeb9b3;
+  --font: "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1613;
+    --surface: #18211d;
+    --ink: #e8efeb;
+    --muted: #9aaaa2;
+    --line: #2a3731;
+    --accent: #4cc9a0;
+    --accent-soft: #163a2d;
+    --warn: #f0b058;
+    --warn-soft: #3b2c12;
+    --bad: #ff8a80;
+    --used: #4a5851;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1613;
+  --surface: #18211d;
+  --ink: #e8efeb;
+  --muted: #9aaaa2;
+  --line: #2a3731;
+  --accent: #4cc9a0;
+  --accent-soft: #163a2d;
+  --warn: #f0b058;
+  --warn-soft: #3b2c12;
+  --bad: #ff8a80;
+  --used: #4a5851;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 14px; }
+h1 { font-size: 20px; font-weight: 900; margin: 4px 0 0; letter-spacing: -0.02em; }
+.sub { margin: 0; color: var(--muted); font-size: 14px; }
+h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* result */
+.result { border-color: var(--accent); }
+.big-label { font-size: 13px; color: var(--muted); margin: 0; }
+.big { font-size: 44px; font-weight: 900; line-height: 1.1; letter-spacing: -0.03em; color: var(--accent); margin: 2px 0 0; }
+.big small { font-size: 18px; font-weight: 700; margin-left: 4px; color: var(--ink); }
+.pay-line { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.pay-line b { color: var(--ink); font-weight: 500; }
+#v-pct { min-width: 56px; }
+.meter { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line); margin: 16px 0 8px; }
+.meter span { display: block; height: 100%; transition: width .25s ease; }
+.m-used { background: var(--used); }
+.m-burn { background: var(--warn); }
+.m-pay { background: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin: 0; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.verdict { margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; background: var(--accent-soft); }
+.verdict.warn { background: var(--warn-soft); }
+.verdict.bad { background: var(--warn-soft); color: var(--bad); }
+.verdict strong { font-weight: 700; }
+.verdict .how { display: block; margin-top: 4px; font-size: 14px; color: var(--muted); }
+.total { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.tot-label { margin: 0; font-size: 13px; color: var(--muted); }
+.tot-num { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.2; }
+.tot-num small { font-size: 16px; font-weight: 700; margin-left: 3px; }
+.tot-list { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 6px 0 0; padding: 0; font-size: 14px; color: var(--muted); }
+.tot-list b { color: var(--ink); }
+.tot-note { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.tot-note b { color: var(--ink); }
+.used-ref { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
+.used-ref p { margin: 0; }
+.used-ref b { color: var(--ink); font-weight: 700; }
+.ref-sub { margin-top: 2px !important; font-size: 12px; }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.head-row h2 { margin: 0; }
+.seg.basis button { height: 34px; border-radius: 8px; }
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; text-align: left; }
+.one-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.mini { display: grid; gap: 4px; min-width: 0; }
+.mini > label, .mini > span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mini .suffix input.g { width: 72px; padding: 0 20px; text-align: center; }
+.mini input.jd { width: 118px; padding: 0 8px; text-align: center; letter-spacing: 0.02em; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mini .suffix i { right: 6px; font-size: 12px; }
+.mini .ymd { gap: 2px; }
+.mini .ymd b { color: var(--muted); font-weight: 400; }
+.mini .ymd input { width: 38px; height: 46px; padding: 0 2px; text-align: center; }
+.mini .ymd input.y { width: 54px; }
+.basis-btn { height: 46px; width: 68px; padding: 0; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.line-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
+.line-name { font-size: 15px; font-weight: 500; }
+.w110 { width: 112px; flex: none; }
+.ymd { display: flex; align-items: center; gap: 4px; }
+.ymd span { font-size: 14px; color: var(--muted); margin-right: 4px; }
+.ymd input { width: 52px; height: 42px; padding: 0 4px; text-align: center; }
+.ymd input.y { width: 70px; }
+.legal-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.legal-row .note { flex: 1 1 200px; }
+.chip.small { height: 34px; padding: 0 12px; font-size: 13px; }
+.seg { display: flex; gap: 6px; }
+.seg.basis button { width: auto; padding: 0 10px; font-size: 13px; font-weight: 500; }
+.seg button {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+
+/* fields */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label, .field .lab { font-size: 13px; color: var(--muted); }
+.field.wide { grid-column: 1 / -1; }
+input[type="number"], input[type="text"], select {
+  width: 100%; min-width: 0; height: 46px; padding: 0 12px;
+  font: inherit; font-size: 16px; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+}
+input:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.suffix { position: relative; }
+.suffix input { padding-right: 38px; }
+.suffix i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); font-size: 14px; pointer-events: none; }
+
+/* steppers */
+.rows { display: grid; gap: 10px; }
+.step-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.step-name { font-weight: 500; }
+.step-name small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.stepper { display: flex; align-items: center; gap: 4px; }
+.stepper button {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 22px; line-height: 1; cursor: pointer;
+}
+.stepper button:active { background: var(--accent-soft); }
+.stepper output { min-width: 36px; text-align: center; font-weight: 700; font-size: 18px; }
+
+/* events */
+.ev { display: grid; grid-template-columns: 1fr 84px auto 40px; gap: 8px; align-items: center; }
+.ev input[type="text"], .ev select { height: 42px; }
+.chk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+.icon-btn { width: 40px; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 18px; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.chip:active { background: var(--accent-soft); }
+.empty { color: var(--muted); font-size: 14px; margin: 0; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.reset { justify-self: start; height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+@media (max-width: 380px) {
+  .ev { grid-template-columns: 1fr 76px 40px; }
+  .ev .chk { grid-column: 1 / 3; }
+}
+@media (prefers-reduced-motion: reduce) { .meter span { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>연차 소진 계산기</h1>
+    <p class="sub">연차를 남겨서 수당을 최대로 받는 계획을 세워요.</p>
+  </header>
+
+  <section class="card result" aria-live="polite">
+    <p class="big-label">남은 연차 (안 쓰면 소멸)</p>
+    <p class="big num"><span id="outBurn">0</span><small>일</small></p>
+    <p class="pay-line num">수당용으로 남길 연차 <b id="outPay">0</b>일 (<span id="outPct">30</span>%)</p>
+    <div class="meter" role="img" aria-label="연차 사용 현황 막대">
+      <span class="m-used" id="barUsed"></span>
+      <span class="m-burn" id="barBurn"></span>
+      <span class="m-pay" id="barPay"></span>
+    </div>
+    <ul class="legend">
+      <li><span class="dot m-used"></span>사용 <b class="num" id="lgUsed">0</b>일</li>
+      <li><span class="dot m-burn"></span>더 써야 함 <b class="num" id="lgBurn">0</b>일</li>
+      <li><span class="dot m-pay"></span>수당 <b class="num" id="lgPay">0</b>일</li>
+    </ul>
+    <div class="verdict" id="verdict"></div>
+    <div class="total num" id="total"></div>
+    <div class="used-ref num">
+      <p class="ref-line">올해 쓴 휴가 <b id="uTotal">0</b>일 <span id="uList"></span></p>
+      <p class="ref-sub" id="uNote"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>기본 정보</h2>
+    <div class="rows">
+      <div class="one-row">
+        <div class="mini">
+          <label for="grant">부여 연차</label>
+          <div class="suffix"><input id="grant" type="number" inputmode="decimal" min="0" step="0.5" class="g"><i>일</i></div>
+        </div>
+        <div class="mini">
+          <label for="jdate">입사일</label>
+          <input id="jdate" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="2018.08.06" class="jd">
+        </div>
+        <div class="mini">
+          <span>부여 기준</span>
+          <button type="button" id="basisBtn" class="basis-btn"></button>
+        </div>
+      </div>
+      <div class="legal-row">
+        <p class="note num" id="legal"></p>
+        <button type="button" class="chip small" id="applyLegal" hidden></button>
+      </div>
+      <div class="step-row">
+        <div class="step-name">수당으로 받을 수 있는 비율<small>5%씩 조절</small></div>
+        <div class="stepper"><button type="button" data-k="pct" data-d="-5" aria-label="비율 5% 줄이기">−</button><output id="v-pct" class="num">30%</output><button type="button" data-k="pct" data-d="5" aria-label="비율 5% 늘리기">+</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>지금까지 쓴 연차</h2>
+    <div class="rows">
+      <div class="step-row">
+        <div class="step-name">연차<small>1일</small></div>
+        <div class="stepper"><button type="button" data-k="a" data-d="-1" aria-label="연차 줄이기">−</button><output id="v-a" class="num">0</output><button type="button" data-k="a" data-d="1" aria-label="연차 늘리기">+</button></div>
+      </div>
+      <div class="step-row">
+        <div class="step-name">반차<small>0.5일</small></div>
+        <div class="stepper"><button type="button" data-k="h" data-d="-1" aria-label="반차 줄이기">−</button><output id="v-h" class="num">0</output><button type="button" data-k="h" data-d="1" aria-label="반차 늘리기">+</button></div>
+      </div>
+      <div class="step-row">
+        <div class="step-name">반반차<small>0.25일</small></div>
+        <div class="stepper"><button type="button" data-k="q" data-d="-1" aria-label="반반차 줄이기">−</button><output id="v-q" class="num">0</output><button type="button" data-k="q" data-d="1" aria-label="반반차 늘리기">+</button></div>
+      </div>
+    </div>
+    <p class="note num" style="margin-top:12px">사용 합계 <b id="usedSum">0</b>일</p>
+  </section>
+
+  <section class="card">
+    <h2>연차를 깎지 않는 휴가</h2>
+    <div class="rows">
+      <div class="step-row">
+        <div class="step-name">교육휴가 받은 일수<small>최대 5일, 교육을 받을 때마다 +</small></div>
+        <div class="stepper"><button type="button" data-k="eduG" data-d="-1" aria-label="교육휴가 받은 일수 줄이기">−</button><output id="v-eduG" class="num">0</output><button type="button" data-k="eduG" data-d="1" aria-label="교육휴가 받은 일수 늘리기">+</button></div>
+      </div>
+      <div class="step-row">
+        <div class="step-name">교육휴가 쓴 일수<small>받은 일수까지</small></div>
+        <div class="stepper"><button type="button" data-k="eduU" data-d="-1" aria-label="교육휴가 쓴 일수 줄이기">−</button><output id="v-eduU" class="num">0</output><button type="button" data-k="eduU" data-d="1" aria-label="교육휴가 쓴 일수 늘리기">+</button></div>
+      </div>
+    </div>
+    <h2 style="margin-top:18px">팀 이벤트 비공식 휴가</h2>
+    <div class="rows" id="evList"></div>
+    <div class="chips" id="chips">
+      <button type="button" class="chip" data-n="생일반차" data-d="0.5">+ 생일반차</button>
+      <button type="button" class="chip" data-n="팀 이벤트 휴가" data-d="0.5">+ 팀 이벤트 반차</button>
+      <button type="button" class="chip" data-n="" data-d="1">+ 직접 추가</button>
+    </div>
+  </section>
+
+  <button type="button" class="reset" id="reset">처음 값으로 되돌리기</button>
+  <p class="note">계산 기준: 수당 비율은 부여 연차 중 수당으로 받을 수 있는 최대 몫이고, 그 몫을 넘는 남은 연차는 소멸한다고 가정해요. 회사 규정이 다르면 비율을 조정하세요.</p>
+</main>
+
+<script>
+(function () {
+  var KEY = "dayoff-calc-v1";
+  var DEF = { ver: 2, grant: 15, pct: 30, join: "", jy: "", jm: "", jd: "", jdate: "", basis: "fiscal", a: 0, h: 0, q: 0, eduG: 2, eduU: 0, nextId: 2,
+              ev: [{ id: 1, name: "생일반차", days: 0.5, used: false }] };
+  var S = load();
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var o = JSON.parse(raw); if (o && typeof o === "object") { var m = Object.assign({}, DEF, o); if (m.ver !== 2) { m.pct = 30; m.ver = 2; } return m; } }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEF));
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  function num(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
+  function fmt(n) { return String(+n.toFixed(2)); }
+  function $(id) { return document.getElementById(id); }
+
+  function ymd(d) {
+    return d.getFullYear() + "." + ("0" + (d.getMonth() + 1)).slice(-2) + "." + ("0" + d.getDate()).slice(-2);
+  }
+
+  // 근로기준법 제60조: 1년 이상 15일, 3년 이상이면 최초 1년을 넘는 매 2년마다 1일 가산, 최대 25일.
+  function byTenure(n) { return Math.min(25, 15 + Math.max(0, Math.floor((n - 1) / 2))); }
+
+  function legal() {
+    var dg = String(S.jdate || "");
+    if (dg.length !== 8) return null;
+    var jy = parseInt(dg.slice(0, 4), 10), jm = parseInt(dg.slice(4, 6), 10), jd = parseInt(dg.slice(6, 8), 10);
+    if (!(jy >= 1980 && jy <= 2100 && jm >= 1 && jm <= 12 && jd >= 1 && jd <= 31)) return null;
+    var j = new Date(jy, jm - 1, jd);
+    if (j.getMonth() !== jm - 1) return null;
+    var now = new Date();
+    var t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (j > t) return null;
+    var Y = t.getFullYear();
+
+    if (S.basis === "anniv") {
+      // 입사 기념일마다 새 연차가 생기는 방식
+      var years = Y - j.getFullYear();
+      var ann = new Date(Y, j.getMonth(), j.getDate());
+      if (t < ann) { years--; ann = new Date(Y - 1, j.getMonth(), j.getDate()); }
+      var end = new Date(ann.getFullYear() + 1, ann.getMonth(), ann.getDate() - 1);
+      if (years < 1) {
+        var months = (Y - j.getFullYear()) * 12 + (t.getMonth() - j.getMonth()) - (t.getDate() < j.getDate() ? 1 : 0);
+        return { days: null, label: "입사 " + Math.max(0, months) + "개월차 (한 달 개근마다 1일, 최대 11일)" };
+      }
+      var d1 = byTenure(years);
+      return { days: d1, label: "근속 " + years + "년차 → 연차 " + d1 + "일 (기간 " + ymd(ann) + " ~ " + ymd(end) + ")" };
+    }
+
+    // 매년 1월 1일에 한 해 치를 통으로 주는 방식: 1월 1일 기준 만 근속연수
+    if (j.getFullYear() === Y) return { days: null, label: "입사 첫해는 한 달 개근마다 1일씩 생겨요 (최대 11일)" };
+    var anniThisYear = new Date(Y, j.getMonth(), j.getDate());
+    var ten = Y - j.getFullYear() - (new Date(Y, 0, 1) < anniThisYear ? 1 : 0);
+    if (ten < 1) return { days: 15, label: "입사 다음 해 → 15일 (회사가 비례해서 줄 수도 있어요)" };
+    var d2 = byTenure(ten);
+    return { days: d2, label: "올해 1월 1일 기준 근속 " + ten + "년 → 연차 " + d2 + "일" };
+  }
+
+  function fmtDate(d) {
+    if (d.length <= 4) return d;
+    if (d.length <= 6) return d.slice(0, 4) + "." + d.slice(4);
+    return d.slice(0, 4) + "." + d.slice(4, 6) + "." + d.slice(6);
+  }
+
+  function syncBasis() {
+    var b = $("basisBtn"), f = S.basis !== "anniv";
+    b.textContent = f ? "매년" : "입사일";
+    b.setAttribute("aria-label", "연차 부여 기준 바꾸기. 지금은 " + (f ? "매년 1월 1일에 통으로" : "입사 기념일마다"));
+  }
+
+  function renderLegal() {
+    var L = legal(), p = $("legal"), btn = $("applyLegal");
+    if (!L) { p.textContent = "입사년도를 넣으면 법정 연차를 계산해 드려요."; btn.hidden = true; return; }
+    p.textContent = L.label;
+    if (L.days !== null && num(S.grant) !== L.days) { btn.hidden = false; btn.textContent = "부여 연차를 " + L.days + "일로 적용"; btn.dataset.v = L.days; }
+    else { btn.hidden = true; }
+  }
+
+  function breakdown(days) {
+    var quarters = Math.ceil(days * 4 - 1e-9);
+    var whole = Math.floor(quarters / 4), r = quarters % 4;
+    var half = r >= 2 ? 1 : 0, quarter = r % 2;
+    var parts = [];
+    if (whole) parts.push("연차 " + whole + "일");
+    if (half) parts.push("반차 1회");
+    if (quarter) parts.push("반반차 1회");
+    return { text: parts.join(" + "), rounded: Math.abs(quarters / 4 - days) > 0.001, total: quarters / 4 };
+  }
+
+  function calc() {
+    var N = num(S.grant), pct = Math.min(100, num(S.pct));
+    var used = num(S.a) * 1 + num(S.h) * 0.5 + num(S.q) * 0.25;
+    var R = N - used;
+    var C = N * pct / 100;
+    var burn = Math.max(0, R - C);
+    var pay = Math.max(0, Math.min(R, C));
+    var lost = Math.max(0, C - Math.max(R, 0));
+    var eduLeft = Math.max(0, num(S.eduG) - num(S.eduU));
+    var evLeft = S.ev.reduce(function (s, e) { return s + (e.used ? 0 : num(e.days)); }, 0);
+    return { N: N, used: used, R: R, C: C, burn: burn, pay: pay, lost: lost, free: eduLeft + evLeft, eduLeft: eduLeft, evLeft: evLeft };
+  }
+
+  function render() {
+    var c = calc();
+    $("outBurn").textContent = fmt(c.burn);
+    $("outPay").textContent = fmt(c.pay);
+    $("outPct").textContent = fmt(Math.min(100, num(S.pct)));
+
+    var base = Math.max(c.N, c.used, 0.0001);
+    $("barUsed").style.width = (Math.min(c.used, base) / base * 100) + "%";
+    $("barBurn").style.width = (c.burn / base * 100) + "%";
+    $("barPay").style.width = (c.pay / base * 100) + "%";
+    $("lgUsed").textContent = fmt(c.used);
+    $("lgBurn").textContent = fmt(c.burn);
+    $("lgPay").textContent = fmt(c.pay);
+    $("usedSum").textContent = fmt(c.used);
+
+    var v = $("verdict"), html, cls = "verdict";
+    if (c.N <= 0) {
+      html = "부여받은 연차를 입력해 주세요.";
+    } else if (c.R < 0) {
+      cls += " bad";
+      html = "<strong>사용한 연차가 부여 연차보다 많아요.</strong><span class=\"how\">입력한 횟수를 다시 확인해 주세요.</span>";
+    } else if (c.burn > 0.001) {
+      cls += " warn";
+      var b = breakdown(c.burn);
+      html = "<strong>앞으로 " + fmt(c.burn) + "일을 더 써야 해요.</strong> 안 쓰면 그만큼 소멸해요."
+        + "<span class=\"how\">예: " + b.text + (b.rounded ? " (0.25일 단위로 올림, 합계 " + fmt(b.total) + "일)" : "") + "</span>"
+        + "<span class=\"how\">남은 " + fmt(c.pay) + "일은 쓰지 말고 수당으로 남겨두세요.</span>";
+    } else if (c.lost > 0.001) {
+      cls += " warn";
+      html = "<strong>이미 수당 기회 " + fmt(c.lost) + "일치를 썼어요.</strong>"
+        + "<span class=\"how\">남은 " + fmt(c.R) + "일은 전부 남겨서 수당으로 받으세요.</span>";
+    } else {
+      html = "<strong>최대 수당을 확보한 상태예요.</strong> 더 쓰지 말고 " + fmt(c.R) + "일을 그대로 남기세요.";
+    }
+    v.className = cls;
+    v.innerHTML = html;
+
+    var eduUsed = Math.min(num(S.eduU), num(S.eduG));
+    var evUsed = S.ev.reduce(function (s, e) { return s + (e.used ? num(e.days) : 0); }, 0);
+    $("uTotal").textContent = fmt(c.used + eduUsed + evUsed);
+    $("uList").textContent = "(연차 " + fmt(c.used) + " · 교육 " + fmt(eduUsed) + " · 이벤트 " + fmt(evUsed) + ")";
+    $("uNote").textContent = "연차 " + num(S.a) + "회, 반차 " + num(S.h) + "회, 반반차 " + num(S.q) + "회";
+
+    renderLegal();
+    var usable = c.burn + c.free;
+    $("total").innerHTML =
+      "<p class=\"tot-label\">마음껏 쓸 수 있는 휴가 총합 (수당용 제외)</p>"
+      + "<p class=\"tot-num\">" + fmt(usable) + "<small>일</small></p>"
+      + "<ul class=\"tot-list\"><li>써야 하는 연차 <b>" + fmt(c.burn) + "일</b></li><li>교육휴가 <b>" + fmt(c.eduLeft) + "일</b></li><li>이벤트 휴가 <b>" + fmt(c.evLeft) + "일</b></li></ul>"
+      + "<p class=\"tot-note\">수당용 연차 " + fmt(c.pay) + "일은 이미 빼고 계산했어요."
+      + (c.free > 0 ? " 교육·이벤트 휴가를 먼저 쓰세요." : "") + "</p>";
+    save();
+  }
+
+  function renderEvents() {
+    var box = $("evList");
+    box.innerHTML = "";
+    if (!S.ev.length) {
+      var p = document.createElement("p"); p.className = "empty"; p.textContent = "아직 없어요. 아래 버튼으로 추가하세요."; box.appendChild(p); return;
+    }
+    S.ev.forEach(function (e) {
+      var row = document.createElement("div"); row.className = "ev"; row.dataset.id = e.id;
+      var t = document.createElement("input"); t.type = "text"; t.value = e.name; t.placeholder = "휴가 이름"; t.id = "evn-" + e.id; t.setAttribute("aria-label", "휴가 이름");
+      t.addEventListener("input", function () { e.name = t.value; save(); });
+      var s = document.createElement("select"); s.id = "evd-" + e.id; s.setAttribute("aria-label", "휴가 일수");
+      [0.25, 0.5, 1, 2].forEach(function (d) {
+        var o = document.createElement("option"); o.value = d; o.textContent = d + "일"; if (d === num(e.days)) o.selected = true; s.appendChild(o);
+      });
+      s.addEventListener("change", function () { e.days = parseFloat(s.value); render(); });
+      var lab = document.createElement("label"); lab.className = "chk";
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!e.used; cb.id = "evu-" + e.id;
+      cb.addEventListener("change", function () { e.used = cb.checked; render(); });
+      lab.appendChild(cb); lab.appendChild(document.createTextNode("사용함"));
+      var del = document.createElement("button"); del.type = "button"; del.className = "icon-btn"; del.textContent = "✕"; del.setAttribute("aria-label", "삭제");
+      del.addEventListener("click", function () { S.ev = S.ev.filter(function (x) { return x.id !== e.id; }); renderEvents(); render(); });
+      row.appendChild(t); row.appendChild(s); row.appendChild(lab); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function syncInputs() {
+    $("grant").value = S.grant;
+    if (!S.jdate) {
+      if (S.jy && S.jm && S.jd) S.jdate = String(S.jy) + ("0" + S.jm).slice(-2) + ("0" + S.jd).slice(-2);
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(S.join || "")) S.jdate = S.join.replace(/-/g, "");
+    }
+    S.jdate = String(S.jdate || "").replace(/\D/g, "").slice(0, 8);
+    $("jdate").value = fmtDate(S.jdate);
+    syncBasis();
+    S.pct = Math.min(100, num(S.pct));
+    $("v-pct").textContent = S.pct + "%";
+    S.eduG = Math.min(5, num(S.eduG));
+    S.eduU = Math.min(num(S.eduU), S.eduG);
+    ["a", "h", "q", "eduG", "eduU"].forEach(function (k) { $("v-" + k).textContent = num(S[k]); });
+  }
+
+  $("grant").addEventListener("input", function () { S.grant = $("grant").value; render(); });
+  $("jdate").addEventListener("input", function () {
+    S.jdate = $("jdate").value.replace(/\D/g, "").slice(0, 8);
+    $("jdate").value = fmtDate(S.jdate);
+    render();
+  });
+  $("basisBtn").addEventListener("click", function () {
+    S.basis = S.basis === "anniv" ? "fiscal" : "anniv"; syncBasis(); render();
+  });
+  $("applyLegal").addEventListener("click", function () {
+    S.grant = parseFloat($("applyLegal").dataset.v);
+    $("grant").value = S.grant;
+    render();
+  });
+  document.querySelectorAll(".stepper button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var k = b.dataset.k, d = parseInt(b.dataset.d, 10);
+      var next = Math.max(0, num(S[k]) + d);
+      if (k === "pct") { next = Math.min(next, 100); S.pct = next; $("v-pct").textContent = next + "%"; render(); return; }
+      if (k === "eduG") next = Math.min(next, 5);
+      if (k === "eduU") next = Math.min(next, num(S.eduG));
+      S[k] = next;
+      if (k === "eduG") { S.eduU = Math.min(num(S.eduU), next); $("v-eduU").textContent = S.eduU; }
+      $("v-" + k).textContent = S[k];
+      render();
+    });
+  });
+  $("chips").addEventListener("click", function (ev) {
+    var b = ev.target.closest(".chip"); if (!b) return;
+    S.ev.push({ id: S.nextId++, name: b.dataset.n, days: parseFloat(b.dataset.d), used: false });
+    renderEvents(); render();
+    if (!b.dataset.n) { var last = S.ev[S.ev.length - 1]; var el = $("evn-" + last.id); if (el) el.focus(); }
+  });
+  $("reset").addEventListener("click", function () {
+    S = JSON.parse(JSON.stringify(DEF)); syncInputs(); renderEvents(); render();
+  });
+
+  syncInputs(); renderEvents(); render();
+})();
+</script>
+</body>
+</html>
