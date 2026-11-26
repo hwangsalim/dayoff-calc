@@ -182,6 +182,8 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 .chip:active { background: var(--accent-soft); }
 .empty { color: var(--muted); font-size: 14px; margin: 0; }
 .note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.backup { display: grid; gap: 8px; }
+.backup input { height: 40px; font-size: 12px; }
 .reset { justify-self: start; height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 @media (max-width: 380px) {
   .ev { grid-template-columns: 1fr 76px 40px; }
@@ -287,6 +289,11 @@ input:focus-visible, select:focus-visible, button:focus-visible {
     </div>
   </section>
 
+  <div class="backup">
+    <button type="button" class="chip small" id="copyLink" style="justify-self:start">기록 링크 복사</button>
+    <input id="linkOut" type="text" readonly hidden aria-label="기록 링크">
+    <p class="note" id="copyMsg">브라우저를 옮길 때 쓰는 백업이에요. 옮기기 전 브라우저에서 복사해서, 새 브라우저 주소창에 붙여넣으세요.</p>
+  </div>
   <button type="button" class="reset" id="reset">처음 값으로 되돌리기</button>
   <p class="note">계산 기준: 수당 비율은 부여 연차 중 수당으로 받을 수 있는 최대 몫이고, 그 몫을 넘는 남은 연차는 소멸한다고 가정해요. 회사 규정이 다르면 비율을 조정하세요.</p>
 </main>
@@ -297,6 +304,27 @@ input:focus-visible, select:focus-visible, button:focus-visible {
   var DEF = { ver: 2, grant: 15, pct: 30, join: "", jy: "", jm: "", jd: "", jdate: "", basis: "fiscal", a: 0, h: 0, q: 0, eduG: 2, eduU: 0, nextId: 2,
               ev: [{ id: 1, name: "생일반차", days: 0.5, used: false }] };
   var S = load();
+  var imported = false;
+
+  function enc() {
+    var j = JSON.stringify(S);
+    return btoa(unescape(encodeURIComponent(j))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function dec(t) {
+    t = t.replace(/-/g, "+").replace(/_/g, "/");
+    while (t.length % 4) t += "=";
+    return JSON.parse(decodeURIComponent(escape(atob(t))));
+  }
+  function importFromHash() {
+    var m = /^#d=([\w\-]+)/.exec(location.hash);
+    if (!m) return;
+    try {
+      var o = dec(m[1]);
+      if (o && typeof o === "object") { S = Object.assign({}, DEF, o); S.ver = 2; save(); imported = true; }
+    } catch (e) {}
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  }
+  importFromHash();
 
   function load() {
     try {
@@ -530,7 +558,21 @@ input:focus-visible, select:focus-visible, button:focus-visible {
     S = JSON.parse(JSON.stringify(DEF)); syncInputs(); renderEvents(); render();
   });
 
+  $("copyLink").addEventListener("click", function () {
+    var url = location.href.split("#")[0] + "#d=" + enc();
+    var out = $("linkOut"), msg = $("copyMsg");
+    out.hidden = false; out.value = url;
+    function done(ok) {
+      msg.textContent = ok ? "복사했어요. 메모나 카톡 나에게 보내기에 붙여두세요. 복구할 때는 사파리 주소창에 붙여넣으세요."
+                           : "위 링크를 길게 눌러 복사하세요.";
+      if (!ok) { try { out.select(); } catch (e) {} }
+    }
+    try { navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); }); }
+    catch (e) { done(false); }
+  });
+
   syncInputs(); renderEvents(); render();
+  if (imported) $("copyMsg").textContent = "링크에서 기록을 불러왔어요.";
 })();
 </script>
 </body>
